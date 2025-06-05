@@ -1,0 +1,63 @@
+<dialog class=" js-popup-modal">
+  <div class="js-popup-modal__overlay"></div>
+  <div class="js-popup-modal__content">
+    <button class="js-dialog-close popup-modal__close">X</button>
+    <div class="js-popup-modal__body">
+      <h2 class="js-title">Popup Title</h2>
+      <p class="js-text">This is a sample popup content.</p>
+      <div class="js-products">
+
+      </div>
+    </div>
+  </div>
+</dialog>
+<style>
+  dialog {
+    border: none;
+    border-radius: 8px;
+    background: #fff;
+    color: #555;
+  }
+</style>
+<script>
+  const init = () => {}
+  const shop = "{{ shop.domain | url_encode }}";
+    fetch(`https://yukon-cottages-carlo-prot.trycloudflare.com/api/popup/${shop}`)
+    .then(response => response.json())
+    .then(data => {
+      if(!data.success) return;
+      const popup = document.querySelector('.js-popup-modal');
+      const title = popup.querySelector('.js-title');
+      const text = popup.querySelector('.js-text');
+      text.innerHTML = data.data.description;
+      title.innerHTML = data.data.title;
+      const closeButton = popup.querySelector('.js-dialog-close');
+      closeButton.addEventListener('click', () => {
+        popup.close();
+      });
+
+      // Products
+      const productsContainer = popup.querySelector('.js-products');
+      productsContainer.innerHTML = data.data.products.map(product => {
+        return `
+          <div class="product">
+            <img src="${product.image}" alt="${product.title}">
+            <h3>${product.title}</h3>
+            <p>${product.price}</p>
+            <button class="add-to-cart" data-product-id="${product.id}">Add to Cart</button>
+          </div>
+        `;
+      setTimeout(() => {
+        popup.showModal();
+      }, 2000);
+    })
+</script>
+
+{%schema%} 
+{
+  "name": "Popup",
+  "target": "section",
+  "settings": [
+  ]
+}
+{%endschema%}
