@@ -23,12 +23,14 @@ CREATE TABLE "Popup" (
     "shop" TEXT NOT NULL,
     "title" TEXT,
     "description" TEXT,
+    "media" TEXT NOT NULL,
+    "products" TEXT NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateTable
-CREATE TABLE "Image" (
+CREATE TABLE "Media" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "shop" TEXT NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -3,12 +3,13 @@
 client_id = "680dd8b88e9671eb5cbf6d1feff964e5"
 name = "myapp"
 handle = "myapp-1154"
-application_url = "https://courtesy-nancy-composition-discrete.trycloudflare.com"
+application_url = "https://boards-focus-joke-proud.trycloudflare.com"
 embedded = true
 
 [build]
 include_config_on_deploy = true
 automatically_update_urls_on_dev = true
+dev_store_url = "aj-creativee.myshopify.com"
 
 [webhooks]
 api_version = "2025-04"
@@ -27,9 +28,9 @@ scopes = "write_products,write_files,write_themes"
 
 [auth]
 redirect_urls = [
-  "https://courtesy-nancy-composition-discrete.trycloudflare.com/auth/callback",
-  "https://courtesy-nancy-composition-discrete.trycloudflare.com/auth/shopify/callback",
-  "https://courtesy-nancy-composition-discrete.trycloudflare.com/api/auth/callback"
+  "https://boards-focus-joke-proud.trycloudflare.com/auth/callback",
+  "https://boards-focus-joke-proud.trycloudflare.com/auth/shopify/callback",
+  "https://boards-focus-joke-proud.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]

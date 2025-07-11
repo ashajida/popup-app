@@ -1,43 +1,49 @@
 import { client } from "../db";
 
 type Popup = {
-    title: string | null;
-    description: string | null;
-    shop: string;
-}
+  mediaUrl: string | null;
+  mediaType: string | null;
+  title: string | null;
+  description: string | null;
+  products: string | null;
+  shop: string;
+};
 
 type PopupResponse<T = Popup | Popup[]> = {
-    success: boolean;
-    data?: T;
-    errorMessage?: string;
-    error?: any;
-}
-export const createPopup = async (data: Popup): Promise<PopupResponse<Popup>> => {
-    try {
-        const result = await client.popup.create({
-            data: {
-                id: crypto.randomUUID(),
-                title: data.title,
-                description: data.description,
-                shop: data.shop,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            },
-        })
+  success: boolean;
+  data?: T;
+  errorMessage?: string;
+  error?: any;
+};
+export const createPopup = async (
+  data: Popup,
+): Promise<PopupResponse<Popup>> => {
+  try {
+    const result = await client.popup.create({
+      data: {
+        id: crypto.randomUUID(),
+        title: data.title,
+        description: data.description,
+        products: data.products || "",
+        mediaUrl: data.mediaUrl || "",
+        mediaType: data.mediaType || "",
+        shop: data.shop,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
     return {
-        success: true,
-        data: result,
-    }
-
-    } catch (error) {
-        return {
-            success: false,
-            errorMessage: "Error creating popup",
-            error: error,
-        }
-    }
-    
-}
+      success: true,
+      data: result,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      errorMessage: "Error creating popup",
+      error: error,
+    };
+  }
+};
 
 export const findByShop = async (shop: string): Promise<PopupResponse<Popup>> => {
     try {

@@ -11,6 +11,7 @@ import {
   Box,
 } from "@shopify/polaris";
 import React, { useCallback, useState } from "react";
+import FileResource from "./FileResource";
 
 const UploadModel = () => {
   const shopify = useAppBridge();
@@ -67,30 +68,16 @@ const UploadModel = () => {
     <>
       <Modal id="my-modal">
         <div style={{ padding: "20px", height: "200px" }}>
-        <Form
-          method="POST"
-          encType="multipart/form-data"
-          onSubmit={handleUploadSubmit}
-        >
-            <DropZone allowMultiple={false} accept="image/*" type="image" onDrop={handleDrop}>
-              {uploadedFiles}
-              {fileUpload}
-            </DropZone>
-          <input value="_uploadFile" name="action" hidden />
-          <button
-            type="submit"
-            style={{ display: "none" }}
-            hidden
-            ref={buttonRef}
-            >Submit</button>
-        </Form>
+          <FileResource />
         </div>
         <TitleBar title="Title">
-          <button variant="primary" onClick={() => buttonRef.current?.click()}>Save</button>
+          <button variant="primary" onClick={() => buttonRef.current?.click()}>
+            Save
+          </button>
         </TitleBar>
       </Modal>
 
-      <Button onClick={() => shopify.modal.show("my-modal")}>Open Modal</Button>
+      <Button onClick={() => shopify.modal.show("my-modal")}>Add Image</Button>
     </>
   );
 };
