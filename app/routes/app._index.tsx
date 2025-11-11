@@ -1,12 +1,7 @@
 /* eslint-disable */
 // export const loader = async () => {}
 
-import {
-  ActionFunctionArgs,
-  data,
-  LoaderFunctionArgs,
-  unstable_createFileUploadHandler,
-} from "@remix-run/node";
+import { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import {
   Form,
   useActionData,
@@ -19,17 +14,20 @@ import {
   Box,
   Button,
   Card,
+  Grid,
   Icon,
   MediaCard,
   Page,
   ResourceItem,
   ResourceList,
+  Select,
+  Tabs,
   Text,
   TextField,
   Thumbnail,
   VideoThumbnail,
 } from "@shopify/polaris";
-import UploadModel from "app/components/UploadModel";
+import UploadModel from "app/components/MediaModal";
 import { client } from "app/lib/db";
 import { graphqlClient } from "app/lib/graphql-client";
 import {
@@ -37,21 +35,32 @@ import {
   getMedia,
   getNext,
   getPrev,
+  MediaCollectionResponse,
 } from "app/lib/services/media";
-import { createPopup } from "app/lib/services/popup";
-import { getProductByID, getProducts } from "app/lib/services/products";
-import { uploadFile } from "app/lib/services/upload";
+import { createPopup, Popup, PopupResponse } from "app/lib/services/popup";
 import { authenticate } from "app/shopify.server";
-import { create } from "domain";
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { useAppBridge } from "@shopify/app-bridge-react";
-import { ResourcePicker } from "@shopify/app-bridge/actions";
-import { createApp } from "@shopify/app-bridge/client";
-import { Product as ProductType } from "@shopify/app-bridge-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Modal,
+  Product as ProductType,
+  TitleBar,
+} from "@shopify/app-bridge-react";
 import ProductPicker from "app/components/ProductPicker";
 import type { ResourceListProps } from "@shopify/polaris";
 import { XSmallIcon } from "@shopify/polaris-icons";
-import FileResource from "app/components/FileResource";
+import PopupForm from "app/components/PopupForm";
+import { ActionResponse, validate } from "app/lib/utils";
+import { schema, Schema } from "app/lib/form-validation";
+import { set, success } from "zod";
+import AppearanceSettings from "app/components/AppearanceSettings";
+import Media from "app/components/Media";
+import ProductPreview from "app/components/ProductPreview";
+import Products from "app/components/Products";
+import { useProduct } from "app/lib/hooks/useProducts";
+import { useMedia } from "app/lib/hooks/useMedia";
+import { useFormFields } from "app/lib/hooks/useFormFields";
+import { useStatus } from "app/lib/hooks/useStatus";
+import { useHandleSave, useSave } from "app/lib/hooks/useSave";
 
 type ProductGraphQLResponse = {
   id: string;
@@ -77,340 +86,308 @@ type ProductActionResponse =
       errorMessage: string;
     };
 
+export type PageState = {
+  media: MediaCollectionResponse;
+  mediaUrl: "";
+  status: "draft" | "active";
+  selectedProducts?: [];
+  selectedMedia?: [];
+  heading?: string;
+  description?: string;
+  pageInfo?: MediaCollectionResponse["pageInfo"];
+};
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
-  const file = formData.get("file");
-  const gQClient = await graphqlClient(request);
+  const action = formData.get("action");
+  const actionData = await validate<Schema>(formData, schema);
 
-  if (formData.get("action") === "_createPopup") {
-    const data = {
-      mediaUrl: formData.get("mediaUrl") as string,
-      mediaType: formData.get("mediaType") as string,
-      products: formData.get("products") as string,
-      title: formData.get("title") as string,
-      description: formData.get("description") as string,
-      shop: session.shop,
-    };
-    console.log("submitted data", data);
-    const result = await createPopup(data);
-    return Response.json(result);
-  }
-
-  if (formData.get("action") === "_uploadFile") {
-    if (!file || file instanceof File === false) {
-      return Response.json({
-        success: false,
-        errorMessage: "No file provided",
-      });
-    }
-
-    const result = await uploadFile(file, gQClient, session.shop);
+  if (!actionData?.success) {
+    console.log("wok.2", actionData);
 
     return Response.json({
-      success: true,
-      data: result.data,
+      errors: actionData?.errors,
+      success: false,
     });
   }
+
+  if (action === "_createPopup") {
+    const {
+      mediaUrl,
+      mediaType,
+      products,
+      title,
+      description,
+      status,
+      mediaId,
+      mediaCursor,
+      style,
+      name,
+    } = actionData.data;
+
+    const data = {
+      name,
+      mediaUrl,
+      mediaType,
+      products,
+      title: title || "",
+      description: description || "",
+      shop: session.shop,
+      status,
+      mediaId,
+      mediaCursor,
+      style: style || "{}",
+    };
+    console.log("data...123", data);
+    const result = await createPopup(data);
+    return Response.json({
+      data: result,
+    });
+  }
+
+  return Response.json({
+    success: false,
+    errorMessage: "Error occurred.",
+  });
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const gQClient = await graphqlClient(request);
-
-  const images = await getMedia(session.shop, gQClient);
-
   const url = new URL(request.url);
   const cursor = url.searchParams.get("cursor");
   const action = url.searchParams.get("action");
-  console.log("cursor...", cursor);
-  let media;
+  let media: Awaited<MediaCollectionResponse> | undefined;
+
   if (!action) {
     media = await getAllMedia(gQClient);
   }
 
   if (action == "get-next") {
     media = await getNext(cursor, gQClient);
+    console.log("media next 123", media?.data);
   }
 
   if (action == "get-prev") {
     media = await getPrev(cursor, gQClient);
   }
 
-  // Fetch products or any other data you need here
-  const idList = ["gid://shopify/Product/8168571600941"];
-
-  console.log("images..", images);
-
   return Response.json({
-    images: images.data || [],
-    media: media?.data || [],
-    pageInfo: media?.pageInfo || {},
+    media,
+    pageInfo: media?.pageInfo,
+    shop: session.shop,
+    status: "draft",
   });
 };
 
 const Index = () => {
-  const [heading, setHeading] = useState("");
-  const handleHeadingChange = (newValue: string) => setHeading(newValue);
-  const [content, setContent] = useState("");
-  const handleContentChange = (newValue: string) => setContent(newValue);
-  const [product, setProduct] = useState<Product[]>([]);
   const fetcher = useFetcher<{ success: boolean }>();
-  const loaderData = useLoaderData<typeof loader>();
+  const loaderData = useLoaderData<PageState>();
   const submit = useSubmit();
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [images, setImages] = useState<
-    {
-      url: string;
-      altText: string;
-      id: string;
-    }[]
-  >(loaderData.images || []);
-  const [selectedImage, setSelectedImage] = useState<
-    ResourceListProps["selectedItems"]
-  >([]);
+  const formRef = useRef<HTMLFormElement>(null);
+  const {
+    heading,
+    content,
+    name,
+    headingFontSize,
+    descriptionFontSize,
+    headingFontWeight,
+    descriptionFontWeight,
+    headingColor,
+    descriptionColor,
+    handleContentChange,
+    handleHeadingChange,
+    handleNameChange,
+    handleDescriptionFontWeightChange,
+    descriptionFontSizeSliderChange,
+    headingFontSizeSliderChange,
+    handleHeadingFontWeightChange,
+    handleHeadingColorChange,
+    handleDescriptionColorChange,
+  } = useFormFields({});
 
-  const actionData = useActionData<typeof action>();
+  const { status, handleStatusChange } = useStatus({
+    defaultStatus: loaderData.status,
+  });
 
-  const [selectedProducts, setSelectedProducts] = useState<ProductType[]>([]);
+  const actionData = useActionData<
+    ActionResponse<Partial<Schema>> & {
+      data: PopupResponse<Popup>;
+    }
+  >();
 
-  const handleSaveSubmit = useCallback(
-    (e: React.FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
-      const form = e.currentTarget as HTMLFormElement;
-      const formData = new FormData(form);
-      console.log("images test", selectedImage?.url);
-      if (selectedImage) {
-        formData.append("mediaUrl", selectedImage.url);
-        formData.append("mediaType", selectedImage.type);
-      }
-      console.log("proudts list", selectedProducts);
-      if (selectedProducts.length) {
-        formData.append(
-          "products",
-          JSON.stringify(selectedProducts.map((p) => p.id)),
-        );
-      }
+  useEffect(() => {
+    if (actionData?.data?.success) {
+      shopify.toast.show(
+        actionData.data.message || "Popup created successfully!",
+      );
+    }
+  }, [actionData?.data, actionData?.success]);
 
-      submit(formData, { method: "POST" });
-    },
-    [selectedImage, selectedProducts],
+  console.log("loaderData media", loaderData.media.data);
+
+  const { selectedMedia, handleSelectedMediaChange, media, handleMediaChange } =
+    useMedia({
+      defaultMedia:
+        (loaderData.media.data as MediaCollectionResponse["data"]) || [],
+    });
+
+  const { handleRemoveProduct, selectedProducts, setSelectedProducts } =
+    useProduct({});
+
+  const [selected, setSelected] = useState(0);
+
+  const handleTabChange = useCallback(
+    (selectedTabIndex: number) => setSelected(selectedTabIndex),
+    [],
   );
+
+  const tabs = [
+    {
+      id: "popup",
+      content: "Popup",
+      accessibilityLabel: "popup",
+      panelID: "popup",
+    },
+    {
+      id: "appearance",
+      content: "Appearance",
+      accessibilityLabel: "Appearance",
+      panelID: "appearance",
+    },
+  ];
+
+  const { handleSaveSubmit, handleSave } = useSave({
+    heading,
+    description: content,
+    selectedMedia,
+    selectedProducts,
+    headingColor,
+    descriptionColor,
+    descriptionFontSize,
+    descriptionFontWeight,
+    headingFontSize,
+    headingFontWeight,
+    status,
+    name,
+    submit,
+    formRef,
+  });
 
   useEffect(() => {
     if (fetcher.data) {
       const result = fetcher.data as ProductActionResponse;
+      console.log(result);
       if (!result.success) {
-        console.error(result.errorMessage);
+        console.error(result.errorMessage, " cannot update product state");
         return;
       }
-      setProduct((prev) => [
-        ...prev,
-        {
-          id: result.data.id,
-          title: result.data.title,
-          price: result.data.variants[0].price,
-        },
-      ]);
     }
   }, [fetcher.data]);
 
-  useEffect(() => {
-    if (actionData?.success) {
-      shopify.toast.show("File uploaded successfully!");
-    }
-  }, [actionData]);
-
-  const handleSave = useCallback(() => {
-    buttonRef.current?.click();
-  }, []);
-
-  const renderMedia = (media) => {
-    console.log("media", media);
-  };
 
   return (
     <Page>
-      <Box
-        style={{
-          display: "flex",
-          justifyContent: "end",
-          gap: "8px",
-          marginBottom: "16px",
-        }}
-      >
-        <Button disabled>Preview</Button>
-        <Button variant="primary" onClick={handleSave}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+        <Button
+          variant="primary"
+          onClick={handleSave}
+          textAlign="end"
+        >
           Save
         </Button>
-      </Box>
-      <BlockStack>
-        <h1>Test</h1>
-        <FileResource
-         
-        />
-      </BlockStack>
-      <BlockStack gap={400}>
-        <Card>
-          <Box
-            style={{
-              display: "flex",
-              justifyContent: "end",
-            }}
-          >
-            <UploadModel />
-          </Box>
-          <Text variant="headingMd" as="h1">
-            Media
-          </Text>
-          {images.length > 0 ? (
-            <BlockStack gap={400}>
-              {images.map((image) => (
-                <div
-                  key={image.id}
-                  onClick={() => {
-                    setSelectedImage(image);
-                    alert("clicked...");
-                  }}
-                >
-                  {renderMedia(image)}
-                </div>
-              ))}
-            </BlockStack>
-          ) : (
-            <Text>No images found</Text>
+      </div>
+      <Form
+        ref={formRef}
+        method="post"
+        onSubmit={handleSaveSubmit}
+        style={{ gap: "12px", display: "flex", flexDirection: "column" }}
+      >
+        <input type="hidden" name="action" value="_createPopup" />
+        <Tabs tabs={tabs} selected={selected} onSelect={handleTabChange}>
+          {selected == 0 && (
+            <>
+            <Box
+                style={{
+                  marginBottom: "16px",
+                }}
+              ></Box>
+              <BlockStack gap="400">
+                <Media
+                  actionData={actionData}
+                  media={media || []}
+                  selectedMedia={selectedMedia}
+                  status={status}
+                  setStatus={handleStatusChange}
+                  setSelectedMedia={handleSelectedMediaChange}
+                  setMedia={handleMediaChange}
+                />
+                <Card>
+                  <PopupForm
+                    heading={heading}
+                    handleHeadingChange={handleHeadingChange}
+                    content={content}
+                    name={name}
+                    handleNameChange={handleNameChange}
+                    handleContentChange={handleContentChange}
+                    actionData={actionData}
+                  />
+                </Card>
+                <Products
+                  selectedProducts={selectedProducts}
+                  handleRemoveProduct={handleRemoveProduct}
+                  actionData={actionData}
+                  setSelectedProducts={setSelectedProducts}
+                />
+              </BlockStack>
+            </>
           )}
-        </Card>
-        <Card>
-          <Form method="post" onSubmit={handleSaveSubmit}>
-            <input type="hidden" name="action" value="_createPopup" />
-            <TextField
-              label="Heading"
-              value={heading}
-              onChange={handleHeadingChange}
-              autoComplete="off"
-              name="title"
-            />
-            <TextField
-              label="Text"
-              value={content}
-              onChange={handleContentChange}
-              autoComplete="off"
-              name="description"
-            />
-            <button
-              type="submit"
-              style={{ display: "none" }}
-              hidden
-              ref={buttonRef}
-            >
-              Submit
-            </button>
-          </Form>
-        </Card>
-        <Card>
-          <Box
-            style={{
-              display: "flex",
-              justifyContent: "end",
-            }}
-          >
-            <ProductPicker setSelectedProducts={setSelectedProducts} />
-          </Box>
-          <ProductPreview products={selectedProducts} />
-        </Card>
-      </BlockStack>
+          {selected == 1 && (
+            <>
+               <Box
+                style={{
+                  marginBottom: "16px",
+                }}
+              ></Box>
+                          <BlockStack gap="400">
+              <Card>
+                <BlockStack gap="400">
+                  <Text variant="headingLg" as="h2" fontWeight="bold">
+                    Heading
+                  </Text>
+                  <AppearanceSettings
+                    color={headingColor}
+                    setColor={handleHeadingColorChange}
+                    fontSize={headingFontSize}
+                    handleFontSizeSliderChange={headingFontSizeSliderChange}
+                    fontWeight={headingFontWeight}
+                    handleFontWeightChange={handleHeadingFontWeightChange}
+                  />
+                </BlockStack>
+              </Card>
+              <Card>
+                <BlockStack gap="400">
+                  <Text variant="headingLg" as="h2" fontWeight="bold">
+                    Description
+                  </Text>
+                  <AppearanceSettings
+                    color={descriptionColor}
+                    setColor={handleDescriptionColorChange}
+                    fontSize={descriptionFontSize}
+                    handleFontSizeSliderChange={descriptionFontSizeSliderChange}
+                    fontWeight={descriptionFontWeight}
+                    handleFontWeightChange={handleDescriptionFontWeightChange}
+                  />
+                </BlockStack>
+              </Card>
+            </BlockStack>
+            </>
+          )}
+        </Tabs>
+      </Form>
     </Page>
   );
 };
 
 export default Index;
-
-type ProductPreviewProps = {
-  products: ProductType[];
-};
-const ProductPreview = ({ products }: ProductPreviewProps) => {
-  const [localProducts, setLocalProducts] = useState<ProductType[]>([]);
-  const [selectedItems, setSelectedItems] = useState<
-    ResourceListProps["selectedItems"]
-  >([]);
-  useEffect(() => {
-    setLocalProducts(products);
-  }, [products]);
-  const handleProductRemove = useCallback((id: string) => {
-    setLocalProducts((products) => {
-      return products.filter((product) => product.id !== id);
-    });
-  }, []);
-
-  if (!localProducts.length) {
-    return <Text alignment="center">No products selected</Text>;
-  }
-  return (
-    <ResourceList
-      resourceName={{ singular: "product", plural: "products" }}
-      items={localProducts}
-      selectedItems={selectedItems}
-      onSelectionChange={setSelectedItems}
-      renderItem={(item) => {
-        const { id, title, options } = item;
-        return (
-          <ResourceItem
-            id={id}
-            key={id}
-            accessibilityLabel={`View details for ${title}`}
-            name={title}
-            onClick={() => console.log(`Clicked on ${title}`)}
-          >
-            <Box
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                width: "100%",
-              }}
-            >
-              <Text variant="bodyMd" fontWeight="bold" as="h3">
-                {title}
-              </Text>
-              <Button
-                variant="tertiary"
-                size="medium"
-                onClick={() => handleProductRemove(id)}
-              >
-                <Icon source={XSmallIcon} tone="base" />
-              </Button>
-            </Box>
-          </ResourceItem>
-        );
-      }}
-    />
-  );
-};
-
-type PopupPreviewProps = {
-  title: string;
-  bodyText: string;
-  image: string;
-  products: Record<string, string>[];
-};
-
-const PopupPreview = ({
-  title,
-  bodyText,
-  image,
-  products,
-}: PopupPreviewProps) => {
-  return (
-    <div>
-      <img src={image} alt="" />
-      <div>
-        <h1>{title}</h1>
-        <p>{bodyText}</p>
-      </div>
-
-      {products.map(() => {
-        return <div></div>;
-      })}
-    </div>
-  );
-};

@@ -36,20 +36,30 @@ model Popup {
   shop        String 
   title       String?
   description String?
+  mediaId     String
   mediaUrl    String
+  mediaCursor String
   mediaType   String
+  name    String
   products    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  status      String   @default("draft")
+  style       String?
 }
 
-model Media {
-  id          String   @id
-  shop        String
-  type        String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
+// model PopupStyle {
+//   id           String   @id @default(cuid())
+//   popupId      String   @unique
+//   popup        Popup    @relation(fields: [popupId], references: [id], onDelete: Cascade)
+//   titleColor   String?  @default("#ffffff")
+//   descriptionColor String? @default("#ffffff")
+//   backgroundColor String? @default("transparent")
+//   buttonColor  String?
+//   textColor    String?
+//   createdAt    DateTime @default(now())
+//   updatedAt    DateTime @updatedAt
+// }
 
 model Shop {
   id          String   @id
@@ -59,3 +69,4 @@ model Shop {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+

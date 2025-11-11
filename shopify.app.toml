@@ -2,12 +2,11 @@
 
 client_id = "680dd8b88e9671eb5cbf6d1feff964e5"
 name = "myapp"
-handle = "myapp-1154"
-application_url = "https://boards-focus-joke-proud.trycloudflare.com"
+application_url = "https://telephony-llc-forming-fellow.trycloudflare.com"
 embedded = true
+handle = "myapp-1154"
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true
 dev_store_url = "aj-creativee.myshopify.com"
 
@@ -24,14 +23,21 @@ api_version = "2025-04"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,write_files,write_themes"
+scopes = "write_app_proxy,write_files,write_products,write_themes"
+optional_scopes = [ ]
+use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "https://boards-focus-joke-proud.trycloudflare.com/auth/callback",
-  "https://boards-focus-joke-proud.trycloudflare.com/auth/shopify/callback",
-  "https://boards-focus-joke-proud.trycloudflare.com/api/auth/callback"
+  "https://telephony-llc-forming-fellow.trycloudflare.com/auth/callback",
+  "https://telephony-llc-forming-fellow.trycloudflare.com/auth/shopify/callback",
+  "https://telephony-llc-forming-fellow.trycloudflare.com/api/auth/callback"
 ]
+
+[app_proxy]
+url = "https://telephony-llc-forming-fellow.trycloudflare.com/app/api-popup"
+subpath = "api-popup"
+prefix = "apps"
 
 [pos]
 embedded = false

@@ -3,6 +3,7 @@ import { LATEST_API_VERSION } from "@shopify/shopify-api";
 import { shopifyApiProject, ApiType } from "@shopify/api-codegen-preset";
 import type { IGraphQLConfig } from "graphql-config";
 
+
 function getConfig() {
   const config: IGraphQLConfig = {
     projects: {

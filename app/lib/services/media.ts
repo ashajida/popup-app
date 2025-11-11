@@ -1,6 +1,7 @@
-import { GraphQLClient } from "node_modules/@shopify/shopify-app-remix/dist/ts/server/clients/types";
+import type { GraphQLClient } from "node_modules/@shopify/shopify-app-remix/dist/ts/server/clients/types";
 import { client } from "../db";
-import { graphqlClient } from "../graphql-client";
+import type { graphqlClient } from "../graphql-client";
+import type { MediaCollectionsQuery } from "app/types/admin.generated";
 
 type Media = {
   id: string;
@@ -8,11 +9,12 @@ type Media = {
   fileType: "IMAGE" | "VIDEO";
 };
 
-type MediaResponse<T = Media | Media[]> = {
-  success: boolean;
-  data?: T;
-  errorMessage?: string;
-  error?: any;
+export type MediaCollectionResponse = {
+  pageInfo: MediaCollectionsQuery["files"]["pageInfo"] | undefined;
+  data: {
+    cursor: string;
+    file: MediaCollectionsQuery["files"]["edges"][0]["node"];
+  }[];
 };
 
 //#region Find Images by Shop
@@ -152,70 +154,111 @@ export const createMedia = async (data: Media) => {
   }
 };
 
-export const getAllMedia = async (gQClient: GraphQLClient<AdminOperations>) => {
+export const getAllMedia = async (
+  gQClient: Awaited<ReturnType<typeof graphqlClient>>,
+  cursor?: string,
+) => {
   try {
-    const response = await gQClient(`
-  {
-  files(first: 10) {
-    edges {
-      cursor
-     node {
-       ... on Video {
-      filename
-      preview {
-          image {
-            url
-          }
-        }
-      __typename
-      sources {
-        url
-      }
-    }
-    ... on MediaImage {
-      __typename,
-      image {
-        url
-        altText
-      }
-    }
-      
-    }
-  }
-    pageInfo {
-      hasNextPage
-      hasPreviousPage
-    }
-  }
-    }
-`);
+    const response = await gQClient(MEDIA_QUERY, {
+      variables: { cursor: cursor },
+    });
+
+    console.log("running....");
 
     const data = await response.json();
 
+    console.log("all media data 1234:", data.data);
+
     return {
-      pageInfo: data.data.files.pageInfo,
-      data: data.data.files.edges.map((edge) => {
+      pageInfo: data.data?.files.pageInfo,
+      data: data.data?.files.edges.map((edge) => {
         return {
           cursor: edge.cursor,
           file: edge.node,
         };
       }),
+    } as MediaCollectionResponse;
+  } catch (e) {
+    console.log("An error occured:", e);
+  }
+};
+
+export const getNext = async (
+  cursor: string | null,
+  gQClient: Awaited<ReturnType<typeof graphqlClient>>,
+) => {
+  try {
+    const response = await gQClient(GET_NEXT_QUERY, {
+      variables: { cursor },
+    });
+
+    const data = await response.json();
+    //console.log("next page data 1234:", cursor , data.data);
+    return {
+      pageInfo: data.data?.files.pageInfo,
+      data: data.data?.files.edges.map((edge) => {
+        return {
+          cursor: edge.cursor,
+          file: edge.node,
+        };
+      }),
+    } as MediaCollectionResponse;
+  } catch (e) {
+    console.log("An error occured:", e);
+  }
+};
+
+export const getPrev = async (
+  cursor: string | null,
+  gQClient: Awaited<ReturnType<typeof graphqlClient>>,
+) => {
+  try {
+    const response = await gQClient(GET_PREV_QUERY, {
+      variables: { cursor },
+    });
+    const data = await response.json();
+    return {
+      pageInfo: data.data?.files.pageInfo,
+      data: data.data?.files.edges.map((edge) => {
+        return {
+          cursor: edge.cursor,
+          file: edge.node,
+        };
+      }),
+    } as MediaCollectionResponse;
+  } catch (e) {
+    console.log("An error occured:", e);
+  }
+};
+
+export const getMediaById = async (
+  id: string,
+  gQClient: Awaited<ReturnType<typeof graphqlClient>>,
+) => {
+  try {
+    const response = await gQClient(GET_MEDIA_BY_ID, {
+      variables: { id },
+    });
+    const data = await response.json();
+    return {
+      data: {
+        file: data.data?.node,
+        cursor: "",
+      } as MediaCollectionResponse["data"][0],
     };
   } catch (e) {
     console.log("An error occured:", e);
   }
 };
 
-
-export const getNext = async (cursor: string, gQClient: GraphQLClient<AdminOperations>) => {
-  try {
-    const response = await gQClient(`
-    {
-  files(first: 10, after: "${cursor}") {
+export const MEDIA_QUERY = `#graphql 
+query MediaCollections($cursor: String) {
+  files(first: 10, after: $cursor) {
     edges {
       cursor
      node {
        ... on Video {
+       id
       filename
       preview {
           image {
@@ -228,7 +271,48 @@ export const getNext = async (cursor: string, gQClient: GraphQLClient<AdminOpera
       }
     }
     ... on MediaImage {
-      __typename,
+    id
+      __typename
+      image {
+        url
+        altText
+      }
+    }
+      
+    }
+  }
+    pageInfo {
+      hasNextPage
+      startCursor
+      endCursor
+      hasPreviousPage
+    }
+  }
+    }
+`;
+
+export const GET_NEXT_QUERY = `#graphql 
+  query getNextFiles($cursor: String){
+  files(first: 10, after: $cursor) {
+    edges {
+         cursor
+     node {
+       ... on Video {
+       id
+      filename
+      preview {
+          image {
+            url
+          }
+        }
+      __typename
+      sources {
+        url
+      }
+    }
+    ... on MediaImage {
+    id
+      __typename
       image {
         url
         altText
@@ -243,31 +327,16 @@ export const getNext = async (cursor: string, gQClient: GraphQLClient<AdminOpera
     }
   }
   }
-    `)
-  const data = await response.json();
-  return {
-      pageInfo: data.data.files.pageInfo,
-      data: data.data.files.edges.map((edge) => {
-        return {
-          cursor: edge.cursor,
-          file: edge.node,
-        };
-      }),
-    };
-  } catch(e) {
-    console.log("An error occured:", e)
-  }
-}
+    `;
 
-export const getPrev = async (cursor: string, gQClient: GraphQLClient<AdminOperations>) => {
-  try {
-    const response = await gQClient(`
-    {
-  files(last: 10, before: "${cursor}") {
+export const GET_PREV_QUERY = `#graphql
+    query getPrevFiles($cursor: String){
+  files(last: 10, before: $cursor) {
     edges {
-      cursor
+          cursor
      node {
        ... on Video {
+       id
       filename
       preview {
           image {
@@ -280,7 +349,8 @@ export const getPrev = async (cursor: string, gQClient: GraphQLClient<AdminOpera
       }
     }
     ... on MediaImage {
-      __typename,
+    id
+      __typename
       image {
         url
         altText
@@ -295,18 +365,32 @@ export const getPrev = async (cursor: string, gQClient: GraphQLClient<AdminOpera
     }
   }
   }
-    `)
-  const data = await response.json();
-  return {
-      pageInfo: data.data.files.pageInfo,
-      data: data.data.files.edges.map((edge) => {
-        return {
-          cursor: edge.cursor,
-          file: edge.node,
-        };
-      }),
-    };
-  } catch(e) {
-    console.log("An error occured:", e)
+    `;
+
+export const GET_MEDIA_BY_ID = `#graphql 
+  query MediaById($id: ID!) {
+    node(id: $id) {
+      ... on Video {
+        id
+        filename
+        preview {
+          image {
+            url
+          }
+        }
+        __typename
+        sources {
+          url
+        }
+      }
+      ... on MediaImage {
+        id
+        __typename
+        image {
+          url
+          altText
+        }
+      }
+    }
   }
-}
+`;

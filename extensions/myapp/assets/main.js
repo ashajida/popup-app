@@ -51,13 +51,16 @@ const delegateEventListener = (context, event, match, cb) => {
 };
 
 const getDialogfromDb = async () => {
+  console.log("fetching data from db....");
   const shop = window.Shopify.shop;
-  const url = '/apps/popup';
+  const url = "/apps/api-popup/" + shop;
   try {
-    const response = await fetch(`${url}/${shop}`);
+    const response = await fetch(`${url}`, {
+      method: "GET",
+    });
     return await response.json();
-  } catch(e) {
-    console.log(`An error occurred: ${e}`)
+  } catch (e) {
+    console.log(`An error occurred: ${e}`);
   }
 }
 

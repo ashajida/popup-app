@@ -40,6 +40,7 @@
     position: absolute;
     top: 50%;
     left: 50%;
+    width: 90%;
     transform: translate(-50%, -50%);
   }
 
@@ -128,6 +129,7 @@
 
   .cart-dialog {
     width: 500px;
+    max-width: 90%;
     z-index: 9999999999999;
     border: 0;
     border-radius: 12px;
@@ -180,6 +182,7 @@
       position: absolute;
       top: 50%;
       transform: translateY(-50%);
+      left: -235px;
     }
 
     .dialog__products {

@@ -1,50 +1,52 @@
 import { useFetcher, useLoaderData } from "@remix-run/react";
-import {
-  Card,
-  ResourceItem,
-  ResourceList,
-  Text,
-  Thumbnail,
-} from "@shopify/polaris";
-import { loader } from "app/routes/app._index";
-import React, { useCallback, useEffect, useState } from "react";
-import type {ResourceListProps} from '@shopify/polaris';
+import { ResourceItem, ResourceList, Text, Thumbnail } from "@shopify/polaris";
+import React, { useEffect, useState } from "react";
+import type { ResourceListProps } from "@shopify/polaris";
+import type { ResourceListSelectedItems } from "@shopify/polaris/build/ts/src/utilities/resource-list";
+import type { MediaCollectionResponse } from "app/lib/services/media";
+import type { PageState } from "app/routes/app._index";
 
-type Props = {
-  setSelectedItems: React.Dispatch<React.SetStateAction<ResourceListProps['selectedItems']>>;
-  selectedItems: ResourceListProps['selectedItems'];
-}
-const FileResource = () => {
-  const loaderData = useLoaderData<typeof loader>();
-  const [media, setMedia] = useState(loaderData.media || []);
-  const [pageData, setPageData] = useState(loaderData.pageInfo || {});
-  const fetcher = useFetcher();
+export type FileResourceProps = {
+  setSelectedMedia: (media: MediaCollectionResponse["data"][0] | undefined) => void;
+  setMedia: (media: MediaCollectionResponse["data"]) => void;
+  media: MediaCollectionResponse["data"];
+};
 
+const FileResource = ({
+  setSelectedMedia,
+  setMedia,
+  media
+}: FileResourceProps) => {
+  const loaderData = useLoaderData<any>();
+  // const [media, setMedia] = useState(loaderData.media.data || []);
+  const [pageData, setPageData] = useState(loaderData.pageInfo as PageState['pageInfo']);
+  const [selectedItems, setSelectedItems] = useState<ResourceListSelectedItems>(
+    [],
+  );
+  // const [currentMedia, setCurrentMedia] = useState(media || []);
+  const fetcher = useFetcher<PageState>();
   useEffect(() => {
     if (fetcher.data?.media) {
-      setMedia(fetcher.data.media); // append new items
-      console.log(fetcher.data, 'fetcher data.....')
-      setPageData(fetcher.data.pageInfo);
+      setMedia(fetcher.data.media.data as MediaCollectionResponse["data"]);
+      setPageData(fetcher.data.media.pageInfo);
     }
-  }, [fetcher.data]);
 
-   const [selectedItems, setSelectedItems] = useState<
-    ResourceListProps['selectedItems']
-  >([]);
+    console.log(fetcher.data?.media, "useEffect");
+  }, [fetcher.data?.media, setPageData, setMedia]);
 
   return (
-    <Card>
+    <>
       <ResourceList
-      multiselectable={false}
+        selectable={true}
         resourceName={{ singular: "media", plural: "medias" }}
         items={media}
         pagination={{
-          hasNext: pageData.hasNextPage,
-          hasPrevious: pageData.hasPreviousPage,
+          hasNext: pageData?.hasNextPage,
+          hasPrevious: pageData?.hasPreviousPage,
           onNext: async () => {
-            setSelectedItems([]); 
+            setSelectedItems([]);
             const cursor = media[media.length - 1].cursor;
-            const response = await fetcher.submit(
+            await fetcher.submit(
               {
                 cursor,
                 action: "get-next",
@@ -53,12 +55,11 @@ const FileResource = () => {
                 method: "GET",
               },
             );
-            console.log(response, 'next page')
           },
           onPrevious: async () => {
-            setSelectedItems([]); 
+            setSelectedItems([]);
             const cursor = media[0].cursor;
-            const response = await fetcher.submit(
+            await fetcher.submit(
               {
                 cursor,
                 action: "get-prev",
@@ -67,35 +68,47 @@ const FileResource = () => {
                 method: "GET",
               },
             );
-            console.log(response, 'next page')
-          }
+          },
         }}
         renderItem={(item) => {
-          const { cursor, filename } = item;
-          const image = item.file.__typename.includes("Image")
-            ? item.file.image.url
-            : item.file.preview?.image.url;
+          const { cursor, file } = item;
+          let image: string | undefined;
+          if (file.__typename == "MediaImage") {
+            image = file.image?.url;
+          } else {
+            image = file.preview?.image?.url;
+          }
           return (
             <ResourceItem
               id={cursor}
-              media={<Thumbnail source={image} alt="" size="medium" />}
-              accessibilityLabel={`View details for ${filename}`}
-              url=""
+              key={cursor}
+              media={<Thumbnail source={image || ""} alt="" size="medium" />}
+              accessibilityLabel={`View details for filename`}
+              url={
+                file.__typename == "MediaImage"
+                  ? file.image?.url
+                  : file.sources?.[0].url
+              }
             >
               <Text variant="bodyMd" fontWeight="bold" as="h3">
-                {filename}
+                filename
               </Text>
             </ResourceItem>
           );
         }}
         selectedItems={selectedItems}
         onSelectionChange={(selected) => {
-          setSelectedItems([selected[selected.length - 1]]);
+          const mediaObj = media.find(
+            (item) => item.cursor === selected[selected.length - 1],
+          );
+          if (!mediaObj) return;
+          setSelectedItems([mediaObj.cursor]);
+          setSelectedMedia(mediaObj);
+          console.log(mediaObj, "mediaObj");
         }}
-        selectable
         showHeader={false}
       />
-    </Card>
+    </>
   );
 };
 
