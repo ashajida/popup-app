@@ -9,32 +9,69 @@ const init = () => {
 }
 
 const addEventListeners = () => {
-  delegateEventListener(document, 'click', '.js-dialog-close', () => {
-    const dialog = document.querySelector('.js-popup-modal');
-    if(!dialog) return;
+  delegateEventListener(document, "click", ".js-dialog-close", () => {
+    const dialog = document.querySelector(".js-popup-modal");
+    if (!dialog) return;
     dialog.close();
-    document.body.style.overflow = 'auto';
+    document.body.style.overflow = "auto";
   });
 
-  delegateEventListener(document, 'click', '.js-dialog-cart-close', () => {
-      const dialog = document.querySelector('.js-cart-dialog');
-      console.log(dialog, 'found...')
+  delegateEventListener(document, "click", ".js-dialog-cart-close", () => {
+    const dialog = document.querySelector(".js-cart-dialog");
     dialog?.close();
   });
 
-  delegateEventListener(document, 'click', '.js-checkout-button', async ({event}) => {
-    event.preventDefault();
-    const response = await fetch('/cart.js');
-    const data = await response.json();
-    console.log('data', response)
-    if(!data || !data.item_count) {
-      return;
-    }
-    window.location = `/checkouts/cn/${data.token}`
-  });
+  delegateEventListener(
+    document,
+    "click",
+    ".js-checkout-button",
+    async ({ event }) => {
+      event.preventDefault();
+      const response = await fetch("/cart.js");
+      const data = await response.json();
+      if (!data || !data.item_count) {
+        return;
+      }
+      window.location = `/checkouts/cn/${data.token}`;
+    },
+  );
 
-  delegateEventListener(document, 'click', '.js-add-to-cart', handleAddToCart);
-}
+  delegateEventListener(document, "click", ".js-add-to-cart", handleAddToCart);
+
+  document.addEventListener("popup:add-to-cart", (e) => {
+    const detail = e.detail;
+    const data = {
+      productId: detail.productId,
+      shop: detail.shop,
+      popupId: detail.popupId,
+    };
+    handleCartToCartAnalytics(data);
+  });
+};
+
+const handleCartToCartAnalytics = async (data) => {
+  try {
+    const response = await fetch("/apps/api-popup/analytics", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ data }),
+    });
+
+    if (!response) {
+      return {
+        succes: false,
+        errorMessage: "Error creating Analytics",
+      };
+    }
+  } catch (e) {
+    return {
+      success: false,
+      error: e.message,
+    };
+  }
+};
 
 const delegateEventListener = (context, event, match, cb) => {
   context.addEventListener(event, (e) => {
@@ -51,9 +88,8 @@ const delegateEventListener = (context, event, match, cb) => {
 };
 
 const getDialogfromDb = async () => {
-  console.log("fetching data from db....");
   const shop = window.Shopify.shop;
-  const url = "/apps/api-popup/" + shop;
+  const url = `/apps/api-popup/popup/?id=${shop}`;
   try {
     const response = await fetch(`${url}`, {
       method: "GET",
@@ -62,41 +98,56 @@ const getDialogfromDb = async () => {
   } catch (e) {
     console.log(`An error occurred: ${e}`);
   }
-}
+};
 
 const dialogUI = async () => {
   const data = await getDialogfromDb();
   if (!data.success) return;
 
-  const dialog = document.querySelector('.js-popup-modal');
-  if(!dialog) return;
+  const dialog = document.querySelector(".js-popup-modal");
+  if (!dialog) return;
 
-  await appendHtml(data.data, dialog, '.dialog__products');
+  await appendHtml(data.data, dialog, ".dialog__products");
 
-  const products = dialog.querySelectorAll('.dialog__product');
+  const products = dialog.querySelectorAll(".dialog__product");
 
   const dialogSetTimeout = setTimeout(() => {
     dialog.show();
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = "hidden";
     products.forEach((product, index) => {
-      const id = setTimeout(() => {
-        product.classList.add('slide-in');
-        clearTimeout(id);
-      }, 250 * index + 0.5);
+      const id = setTimeout(
+        () => {
+          product.classList.add("slide-in");
+          clearTimeout(id);
+        },
+        250 * index + 0.5,
+      );
     });
     clearTimeout(dialogSetTimeout);
   }, 500);
-}
+};
 
 const handleAddToCart = async ({ element }) => {
-  const id = element.closest('.dialog__product')?.dataset.id;
+  const id = element.closest(".dialog__product")?.dataset.id;
   if (!id) return;
+  const context = element.closest(".dialog__container");
+  const popupId = context?.querySelector("#popup-id")?.value;
 
   const response = await addToCart(id);
-  if(response && response.data == "200") {
-    const cartDialog = document.querySelector('.js-cart-dialog');
+  if (response && response.data == "200") {
+    const cartDialog = document.querySelector(".js-cart-dialog");
     cartDialog?.show();
+    dispatchCustomEvent("popup:add-to-cart", {
+      productId: id,
+      shop: window.Shopify.shop,
+      popupId,
+    });
   }
+};
+
+const dispatchCustomEvent = (name, detail = {}) => {
+  const event = new CustomEvent(name, { detail });
+  document.dispatchEvent(event);
 };
 
 const addToCart = async (id) => {

@@ -70,3 +70,14 @@ model Shop {
   updatedAt   DateTime @updatedAt
 }
 
+model Analytics {
+  shop        String
+  productId   String
+  popupId     String
+  count       Int      @default(1)
+  date        DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  eventType   String
+  @@unique([shop, popupId, productId, eventType, date])
+}

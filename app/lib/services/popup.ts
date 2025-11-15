@@ -129,7 +129,7 @@ export const findByShopAndId = async (
 
 export const findByShop = async (
   shop: string,
-): Promise<PopupResponse<Popup>> => {
+): Promise<PopupResponse<Popup & {id: string}>> => {
   try {
     const result = await client.popup.findFirst({
       where: {
